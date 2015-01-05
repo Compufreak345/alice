@@ -1,12 +1,19 @@
-// Package alice provides a convenient way to chain http handlers.
+// Package alice provides a convenient way to chain http handlers, together with contexts.
+// Modified to no longer only chain handlers, but also pass the contexts like
+// suggested by google : https://blog.golang.org/context
 package alice
 
-import "net/http"
+import (
+	"code.google.com/p/go.net/context"
+	"net/http"
+)
 
-// A constructor for a piece of middleware.
-// Some middleware use this constructor out of the box,
-// so in most cases you can just pass somepackage.New
-type Constructor func(http.Handler) http.Handler
+// A constructor for a piece of middleware, also for the final method called by .Then
+type Constructor func(context.Context, CtxHandler) CtxHandler
+type CtxHandlerFunc func(context.Context, http.ResponseWriter, *http.Request)
+type CtxHandler interface {
+	ServeHTTP(context.Context, http.ResponseWriter, *http.Request)
+}
 
 // Chain acts as a list of http.Handler constructors.
 // Chain is effectively immutable:
@@ -44,20 +51,27 @@ func New(constructors ...Constructor) Chain {
 // when a chain is reused in this way.
 // For proper middleware, this should cause no problems.
 //
-// Then() treats nil as http.DefaultServeMux.
-func (c Chain) Then(h http.Handler) http.Handler {
-	var final http.Handler
+// nil is not allowed for Then()
+func (c Chain) Then(h CtxHandler) (wrappedFinal http.Handler) {
+	var final CtxHandler
+
+	ctx := context.TODO()
+
 	if h != nil {
 		final = h
 	} else {
-		final = http.DefaultServeMux
+		panic("nil is not allowed")
 	}
 
 	for i := len(c.constructors) - 1; i >= 0; i-- {
-		final = c.constructors[i](final)
+		final = c.constructors[i](ctx, final)
 	}
+	wrappedFinal = http.HandlerFunc(CtxHandlerToHandlerFunc(ctx, final))
+	return
+}
 
-	return final
+func CtxHandlerToHandlerFunc(ctx context.Context, fn CtxHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) { fn.ServeHTTP(ctx, w, r) }
 }
 
 // ThenFunc works identically to Then, but takes
@@ -68,11 +82,12 @@ func (c Chain) Then(h http.Handler) http.Handler {
 //     c.ThenFunc(fn)
 //
 // ThenFunc provides all the guarantees of Then.
-func (c Chain) ThenFunc(fn http.HandlerFunc) http.Handler {
+func (c Chain) ThenFunc(fn CtxHandlerFunc) http.Handler {
 	if fn == nil {
 		return c.Then(nil)
 	}
-	return c.Then(http.HandlerFunc(fn))
+
+	return c.Then(CtxHandlerFunc(fn))
 }
 
 // Append extends a chain, adding the specified constructors
@@ -91,4 +106,9 @@ func (c Chain) Append(constructors ...Constructor) Chain {
 
 	newChain := New(newCons...)
 	return newChain
+}
+
+// ServeHTTP calls f(ctx,w, r).
+func (f CtxHandlerFunc) ServeHTTP(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	f(ctx, w, r)
 }

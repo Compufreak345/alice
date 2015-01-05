@@ -2,18 +2,18 @@
 package alice
 
 import (
+	"context"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 // A constructor for middleware
 // that writes its own "tag" into the RW and does nothing else.
 // Useful in checking if a chain is behaving in the right order.
 func tagMiddleware(tag string) Constructor {
-	return func(h http.Handler) http.Handler {
+	return func(ctx context.Context, h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(tag))
 			h.ServeHTTP(w, r)
@@ -27,10 +27,10 @@ var testApp = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 // Tests creating a new chain
 func TestNew(t *testing.T) {
-	c1 := func(h http.Handler) http.Handler {
+	c1 := func(ctx context.Context, h http.Handler) http.Handler {
 		return nil
 	}
-	c2 := func(h http.Handler) http.Handler {
+	c2 := func(ctx context.Context, h http.Handler) http.Handler {
 		return http.StripPrefix("potato", nil)
 	}
 
