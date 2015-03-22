@@ -4,8 +4,9 @@
 package alice
 
 import (
-	"code.google.com/p/go.net/context"
 	"net/http"
+
+	"code.google.com/p/go.net/context"
 )
 
 // A constructor for a piece of middleware, also for the final method called by .Then
@@ -68,6 +69,33 @@ func (c Chain) Then(h CtxHandler) (wrappedFinal http.Handler) {
 	}
 	wrappedFinal = http.HandlerFunc(CtxHandlerToHandlerFunc(ctx, final))
 	return
+}
+
+// Same as Then, but with CtxHandler instead of wrapped-http-Handler
+func (c Chain) ThenContext(h CtxHandler) (final CtxHandler) {
+
+	ctx := context.TODO()
+
+	if h != nil {
+		final = h
+	} else {
+		panic("nil is not allowed")
+	}
+
+	for i := len(c.constructors) - 1; i >= 0; i-- {
+		final = c.constructors[i](ctx, final)
+	}
+	return
+}
+
+// Same as ThenFunc, but with CtxHandler instead of wrapped-http-Handler
+func (c Chain) ThenFuncContext(fn CtxHandlerFunc) (final CtxHandler) {
+
+	if fn == nil {
+		return c.Then(nil)
+	}
+
+	return c.ThenContext(CtxHandlerFunc(fn))
 }
 
 func CtxHandlerToHandlerFunc(ctx context.Context, fn CtxHandler) http.HandlerFunc {
