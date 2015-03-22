@@ -92,7 +92,7 @@ func (c Chain) ThenContext(h CtxHandler) (final CtxHandler) {
 func (c Chain) ThenFuncContext(fn CtxHandlerFunc) (final CtxHandler) {
 
 	if fn == nil {
-		return c.Then(nil)
+		return c.ThenContext(nil)
 	}
 
 	return c.ThenContext(CtxHandlerFunc(fn))
