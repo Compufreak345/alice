@@ -6,7 +6,7 @@ package alice
 import (
 	"net/http"
 
-	"code.google.com/p/go.net/context"
+	"golang.org/x/net/context"
 )
 
 // A constructor for a piece of middleware, also for the final method called by .Then
